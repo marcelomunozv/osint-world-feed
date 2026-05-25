@@ -15,15 +15,22 @@ interface TrendChartProps {
   data: TrendItem[]
 }
 
-/**
- * Gráfico de barras horizontales con D3.js mostrando los tópicos más populares.
- * El color indica el sentimiento y la barra de progreso la velocidad.
- */
+function deepEqual(a: TrendItem[], b: TrendItem[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].topic !== b[i].topic || a[i].count !== b[i].count) return false
+  }
+  return true
+}
+
 export function TrendChart({ data }: TrendChartProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const prevData = useRef<TrendItem[]>([])
 
   useEffect(() => {
     if (!svgRef.current || data.length === 0) return
+    if (deepEqual(prevData.current, data)) return
+    prevData.current = data
 
     const svg = d3.select(svgRef.current)
     svg.selectAll('*').remove()

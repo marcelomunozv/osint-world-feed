@@ -2,12 +2,9 @@ import { prisma } from '../config/database'
 import { ProcessedNewsItem } from '../processors'
 import { getOrSetCache, invalidateCache } from '../utils/cache'
 
-const CACHE_TTL = 120 // 2 minutos
+const CACHE_TTL = 120
 
 export class NewsService {
-  /**
-   * Guarda noticias procesadas en la base de datos (upsert por URL única).
-   */
   async saveNews(items: ProcessedNewsItem[]): Promise<number> {
     let saved = 0
 
@@ -32,7 +29,7 @@ export class NewsService {
             imageUrl: item.imageUrl,
             sourceName: item.sourceName,
             sourceId: `${item.sourceType}-${Date.now()}`,
-            sourceType: item.sourceType as any,
+            sourceType: item.sourceType,
             publishedAt: item.publishedAt,
             language: item.language,
             country: item.country,
@@ -48,16 +45,11 @@ export class NewsService {
           },
         })
 
-        // Guardar entidades
         if (item.entities.length > 0) {
+          await prisma.newsEntity.deleteMany({ where: { newsId: news.id } })
           for (const entity of item.entities) {
-            await prisma.newsEntity.upsert({
-              where: {
-                id: `${news.id}-${entity.name}-${entity.type}`,
-              },
-              update: { relevance: entity.relevance },
-              create: {
-                id: `${news.id}-${entity.name}-${entity.type}`,
+            await prisma.newsEntity.create({
+              data: {
                 newsId: news.id,
                 name: entity.name,
                 type: entity.type,
@@ -73,14 +65,10 @@ export class NewsService {
       }
     }
 
-    // Invalidar caché de listados
     await invalidateCache('news:*')
     return saved
   }
 
-  /**
-   * Obtiene listado de noticias con filtros.
-   */
   async getNews(filters: {
     page?: number
     limit?: number
@@ -92,6 +80,8 @@ export class NewsService {
     fromDate?: string
     toDate?: string
     language?: string
+    sortBy?: string
+    sortDir?: string
   }) {
     const page = filters.page || 1
     const limit = Math.min(filters.limit || 50, 100)
@@ -106,8 +96,8 @@ export class NewsService {
     if (filters.language) where.language = filters.language
     if (filters.search) {
       where.OR = [
-        { title: { contains: filters.search, mode: 'insensitive' } },
-        { description: { contains: filters.search, mode: 'insensitive' } },
+        { title: { contains: filters.search } },
+        { description: { contains: filters.search } },
       ]
     }
     if (filters.fromDate || filters.toDate) {
@@ -115,6 +105,11 @@ export class NewsService {
       if (filters.fromDate) where.publishedAt.gte = new Date(filters.fromDate)
       if (filters.toDate) where.publishedAt.lte = new Date(filters.toDate)
     }
+
+    const dir = filters.sortDir === 'asc' ? 'asc' as const : 'desc' as const
+    const orderBy = filters.sortBy === 'date'
+      ? { publishedAt: dir }
+      : { importanceScore: dir }
 
     const cacheKey = `news:list:${JSON.stringify(filters)}`
 
@@ -124,26 +119,27 @@ export class NewsService {
         const [items, total] = await Promise.all([
           prisma.news.findMany({
             where,
-            orderBy: { importanceScore: 'desc' },
+            orderBy,
             skip,
             take: limit,
             include: {
               entities: { take: 5 },
-              _count: { select: { sources: true } },
             },
           }),
           prisma.news.count({ where }),
         ])
 
-        return { items, total, page, limit }
+        const itemsWithCount = items.map((item) => ({
+          ...item,
+          _count: { sources: 0 },
+        }))
+
+        return { items: itemsWithCount, total, page, limit }
       },
       CACHE_TTL
     )
   }
 
-  /**
-   * Obtiene detalle de una noticia por ID.
-   */
   async getNewsById(id: string) {
     return prisma.news.findUnique({
       where: { id },
@@ -155,9 +151,6 @@ export class NewsService {
     })
   }
 
-  /**
-   * Obtiene datos para el mapa de calor mundial.
-   */
   async getHeatmapData() {
     return getOrSetCache('news:heatmap', async () => {
       const items = await prisma.news.findMany({
@@ -193,9 +186,6 @@ export class NewsService {
     }, CACHE_TTL)
   }
 
-  /**
-   * Obtiene tendencias actuales.
-   */
   async getTrends() {
     return getOrSetCache('news:trends', async () => {
       const trends = await prisma.trend.findMany({
@@ -206,9 +196,6 @@ export class NewsService {
     }, CACHE_TTL)
   }
 
-  /**
-   * Obtiene entidades para nube de palabras.
-   */
   async getEntities(limit: number = 50) {
     return getOrSetCache('news:entities', async () => {
       const entities = await prisma.newsEntity.groupBy({

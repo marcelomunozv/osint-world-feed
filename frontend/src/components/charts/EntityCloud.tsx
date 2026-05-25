@@ -21,15 +21,22 @@ const TYPE_COLORS: Record<string, string> = {
   EVENT: '#f59e0b',
 }
 
-/**
- * Nube de palabras con D3.js para visualizar entidades extraídas.
- * El tamaño de la palabra indica su relevancia, el color su tipo.
- */
+function deepEqual(a: EntityItem[], b: EntityItem[]): boolean {
+  if (a.length !== b.length) return false
+  for (let i = 0; i < a.length; i++) {
+    if (a[i].name !== b[i].name || a[i].count !== b[i].count) return false
+  }
+  return true
+}
+
 export function EntityCloud({ data }: EntityCloudProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const prevData = useRef<EntityItem[]>([])
 
   useEffect(() => {
     if (!containerRef.current || data.length === 0) return
+    if (deepEqual(prevData.current, data)) return
+    prevData.current = data
 
     const container = d3.select(containerRef.current)
     container.selectAll('*').remove()

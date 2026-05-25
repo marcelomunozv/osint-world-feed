@@ -2,7 +2,7 @@
 
 ## 📋 Resumen
 
-Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra noticias mundiales en tiempo real. Stack: Next.js + Express + PostgreSQL + Redis + Docker.
+Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra noticias mundiales en tiempo real. Stack: Next.js + Express + SQLite/PostgreSQL + Redis + Docker.
 
 ---
 
@@ -19,22 +19,29 @@ Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra n
 - [x] `frontend/postcss.config.js`
 - [x] `.env.example` con todas las variables documentadas
 - [x] `.gitignore`
+- [x] `start.sh`: script de inicio rápido
 
 ### Fase 1 — Backend: Modelos y Base de Datos ✓
 - [x] `prisma/schema.prisma`: 8 modelos (User, UserPreference, News, NewsEntity, NewsSource, NewsTimeline, NewsBookmark, Trend, CacheEntry)
+- [x] Migrado a SQLite para desarrollo sin Docker
 - [x] `backend/src/config/index.ts`: carga de variables de entorno
 - [x] `backend/src/config/database.ts`: conexión Prisma
-- [x] `backend/src/config/redis.ts`: conexión ioredis
-- [x] `backend/prisma/seed.ts`: datos mock (admin, 10 noticias, tendencias)
+- [x] `backend/src/config/redis.ts`: caché en memoria (reemplaza Redis sin Docker)
+- [x] `backend/prisma/seed.ts`: datos de prueba (admin, tendencias)
 
 ### Fase 2 — Backend: Colectores (Patrón Adaptador) ✓
 - [x] `collectors/types.ts`: interfaz `Collector` y tipo `RawNewsItem`
-- [x] `collectors/mock.collector.ts`: datos simulados para desarrollo
-- [x] `collectors/newsapi.collector.ts`: NewsAPI.org
-- [x] `collectors/gdelt.collector.ts`: GDELT 2.0 API
-- [x] `collectors/rss.collector.ts`: RSS genérico
-- [x] `collectors/wikipedia.collector.ts`: Wikipedia API
-- [x] `collectors/index.ts`: fábrica de colectores + función `collectAll()`
+- [x] **6 colectores reales activos**:
+  - `rss.collector.ts`: BBC, Guardian, NYT, Reuters, Al Jazeera
+  - `wikipedia.collector.ts`: Wikipedia RecentChanges
+  - `reddit.collector.ts`: r/worldnews, r/news, r/inthenews
+  - `who.collector.ts`: WHO (alertas sanitarias globales)
+  - `github.collector.ts`: GitHub Trending (6 lenguajes)
+  - `newsapi.collector.ts`: NewsAPI.org (requiere API key)
+- [x] **2 colectores legacy** (endpoints cambiantes):
+  - `gdelt.collector.ts`: GDELT 2.0 API
+  - `gdelt-tv.collector.ts`: GDELT TV API
+- [x] `mock.collector.ts`: datos simulados para desarrollo (desactivado en prod)
 
 ### Fase 3 — Backend: Procesadores NLP ✓
 - [x] `processors/dedup.ts`: deduplicación por similitud de texto (TF-IDF simplificado)
@@ -47,15 +54,13 @@ Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra n
 ### Fase 4 — Backend: API + WebSockets + Auth ✓
 - [x] `middleware/auth.ts`: JWT (autenticación + opcional)
 - [x] `middleware/errorHandler.ts`: manejo centralizado de errores
-- [x] `services/news.service.ts`: CRUD con caché Redis
-- [x] `services/auth.service.ts`: registro, login, preferencias
+- [x] `services/news.service.ts`: CRUD con caché + orden dinámico (relevancia/fecha, ascendente/descendente)
+- [x] `services/auth.service.ts`: registro, login, preferencias (arrays como JSON string para SQLite)
 - [x] `services/collector.service.ts`: scheduler cron + WebSocket emitter
-- [x] `routes/news.routes.ts`: `/api/news`, `/api/news/heatmap`, `/api/news/trends`, `/api/news/entities`
+- [x] `routes/news.routes.ts`: `/api/news` con filtros, `/api/news/heatmap`, `/api/news/trends`, `/api/news/entities`
 - [x] `routes/auth.routes.ts`: `/api/auth/register`, `/api/auth/login`, `/api/auth/profile`, `/api/auth/preferences`
 - [x] `routes/index.ts`: enrutador principal + health check
 - [x] `websocket/index.ts`: Socket.IO con eventos `breaking-news` y `feed-update`
-- [x] `utils/cache.ts`: `getOrSetCache` con Redis
-- [x] `utils/mockData.ts`: 10 noticias mock con datos realistas
 
 ### Fase 5 — Frontend: Layout y Componentes Base ✓
 - [x] `app/layout.tsx`: layout global con Navbar + AuthProvider
@@ -73,18 +78,27 @@ Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra n
 - [x] `app/page.tsx`: dashboard principal con datos en paralelo
 - [x] `components/news/NewsCard.tsx`: tarjeta de noticia con score, sentimiento, entidades
 - [x] `components/news/NewsFeed.tsx`: lista virtualizada con paginación y skeleton loading
-- [x] `components/map/HeatMap.tsx`: mapa Leaflet con capa de calor
-- [x] `components/charts/TrendChart.tsx`: gráfico D3.js de barras con sentimiento
-- [x] `components/charts/EntityCloud.tsx`: nube de palabras D3.js con posicionamiento espiral
-- [x] `components/ui/FilterBar.tsx`: filtros por país, fuente, estado, score
+- [x] `components/map/HeatMap.tsx`: mapa Leaflet con capa de calor (dynamic import, ssr: false)
+- [x] `components/charts/TrendChart.tsx`: gráfico D3.js de barras con sentimiento (deepEqual)
+- [x] `components/charts/EntityCloud.tsx`: nube de palabras D3.js (deepEqual)
+- [x] `components/ui/FilterBar.tsx`: filtros avanzados (país, fuente, estado, score, fechas, orden)
 
-### Fase 7 — Frontend: Tiempo Real + Modo OSINT ✓
+### Fase 7 — Frontend: Mejoras de Rendimiento y UX ✓
+- [x] Fix ciclo infinito de re-render en FilterBar (useRef + isFirstRender)
+- [x] Fix flickering en D3 charts (deepEqual en dependencias)
+- [x] Fix Leaflet SSR (dynamic import + ssr: false)
+- [x] Memoización de callbacks en Dashboard (useCallback)
+- [x] Selector de intervalo de refresco (1-15 min)
+- [x] Orden por relevancia/fecha con toggle ascendente/descendente
+- [x] Filtro por rango de fechas (Desde / Hasta)
+
+### Fase 8 — Tiempo Real + Modo OSINT ✓
 - [x] `components/news/BreakingNewsBanner.tsx`: banner de última hora con auto-dismiss
-- [x] WebSocket integrado en dashboard: eventos `breaking-news` y `feed-update`
+- [x] WebSocket integrado en dashboard (eventos `breaking-news` y `feed-update`)
 - [x] `app/news/[id]/page.tsx`: detalle completo con fuentes, entidades, timeline, metadatos OSINT
 - [x] `app/search/page.tsx`: búsqueda avanzada con exportación JSON/CSV + modo OSINT
 
-### Fase 8 — Documentación ✓
+### Fase 9 — Documentación ✓
 - [x] `README.md`: documentación completa (arquitectura, setup, API, cómo añadir fuentes)
 - [x] `plan.md`: este archivo de seguimiento
 
@@ -93,44 +107,51 @@ Aplicación web completa tipo dashboard OSINT que recolecta, procesa y muestra n
 ## 📦 Resumen de Archivos Generados
 
 ```
-Total: 62 archivos
-├── frontend/       (16 archivos TSX/TS)
-├── backend/        (22 archivos TS)
-├── raíz           (6 archivos: docker-compose.yml, .env.example, .gitignore, README.md, plan.md)
+Total: 68 archivos
+├── frontend/       (18 archivos TSX/TS)
+├── backend/        (27 archivos TS + Prisma)
+├── raíz           (8 archivos: docker-compose.yml, .env.example, .gitignore,
+│                   README.md, plan.md, start.sh)
 ```
 
 ## 🔑 Características Implementadas
 
-- [x] Agregador multi-fuente (NewsAPI, GDELT, RSS, Wikipedia + Mock)
+- [x] Agregador multi-fuente (6 colectores reales activos)
 - [x] Patrón Adaptador para colectores intercambiables
 - [x] Pipeline NLP: dedup, entidades, sentimiento, resumen, ranking
-- [x] API REST con filtros, paginación y caché Redis
+- [x] API REST con filtros (país, fuente, fecha, score, ordenamiento)
 - [x] WebSockets para noticias de última hora
-- [x] Mapa de calor mundial (Leaflet + PostGIS)
-- [x] Gráfico de tendencias (D3.js)
-- [x] Nube de entidades (D3.js)
+- [x] Mapa de calor mundial (Leaflet + dynamic import SSR)
+- [x] Gráfico de tendencias (D3.js con deepEqual)
+- [x] Nube de entidades (D3.js con deepEqual)
 - [x] Autenticación JWT + preferencias de usuario
+- [x] Selector de intervalo de refresco (1-15 min)
+- [x] Orden por relevancia o fecha (asc/desc)
+- [x] Filtro por rango de fechas
 - [x] Modo OSINT con metadatos y exportación JSON/CSV
 - [x] Responsive mobile-first
 - [x] Tema oscuro/claro
-- [x] Datos mock para desarrollo offline
-- [x] Docker compose multi-servicio
+- [x] Sin dependencia de Docker (SQLite + caché en memoria)
+- [x] Script start.sh con kill agresivo de puertos
 
 ---
 
 ## 🚀 Cómo Levantar
 
 ```bash
-# 1. Clonar y configurar
-cp .env.example .env
+# Sin Docker (recomendado para desarrollo)
+./start.sh
 
-# 2. Levantar servicios
+# O manualmente en dos terminales:
+# Terminal 1:
+cd backend && npx tsx src/index.ts
+
+# Terminal 2:
+cd frontend && npx next dev -p 3000
+
+# Con Docker (producción):
 docker-compose up -d
-
-# 3. Migrar BD (primera vez)
 docker-compose exec backend npx prisma migrate dev --name init
-
-# 4. Cargar datos de prueba
 docker-compose exec backend npx prisma db seed
 ```
 
@@ -159,7 +180,7 @@ Acceder a:
 | Método | Endpoint | Auth | Descripción |
 |--------|----------|------|-------------|
 | GET | `/api/health` | No | Health check |
-| GET | `/api/news` | Opcional | Lista paginada con filtros |
+| GET | `/api/news` | Opcional | Lista paginada con filtros (sortBy, sortDir, fromDate, toDate, country, search, etc.) |
 | GET | `/api/news/:id` | No | Detalle completo |
 | GET | `/api/news/heatmap` | No | Datos geolocalizados |
 | GET | `/api/news/trends` | No | Tendencias actuales |
@@ -169,13 +190,21 @@ Acceder a:
 | GET | `/api/auth/profile` | JWT | Perfil |
 | PUT | `/api/auth/preferences` | JWT | Preferencias |
 
-## 🔌 WebSockets (Socket.IO)
+---
 
-| Evento | Dirección | Payload | Descripción |
-|--------|-----------|---------|-------------|
-| `connected` | → Cliente | `{ message }` | Confirmación de conexión |
-| `breaking-news` | → Cliente | `{ count, items[] }` | Noticias de último momento |
-| `feed-update` | → Cliente | (vacío) | Señal para refrescar el feed |
+## 🌐 Fuentes OSINT Configuradas
+
+| Colector | Fuente | Estado | Artículos/ciclo |
+|----------|--------|--------|-----------------|
+| `RSS` | BBC, Guardian, NYT, Reuters, Al Jazeera | ✅ | ~40 |
+| `Wikipedia` | Wikipedia RecentChanges | ✅ | ~30 |
+| `Reddit` | r/worldnews, r/news, r/inthenews | ✅ | ~45 |
+| `WHO` | Alertas sanitarias OMS | ✅ | ~20 |
+| `GitHub Trending` | 6 lenguajes (JS, Python, TS, Rust, Go, all) | ✅ | ~89 |
+| `NewsAPI` | NewsAPI.org | ⏳ requiere API key | — |
+| `GDELT` | GDELT 2.0 doc/query | ⏳ endpoint caído | — |
+| `GDELT TV` | GDELT TV API | ⏳ endpoint caído | — |
+| `Mock` | Datos simulados | 🧪 solo desarrollo | ~10 |
 
 ---
 
@@ -183,11 +212,14 @@ Acceder a:
 
 ```
 Fuentes externas
-  ├── NewsAPI (top-headlines)
-  ├── GDELT 2.0 (doc/query)
-  ├── RSS (5 fuentes preconfiguradas)
+  ├── RSS (5 medios globales)
   ├── Wikipedia (recentchanges)
-  └── Mock (10 noticias simuladas)
+  ├── Reddit (3 subreddits)
+  ├── WHO (alertas sanitarias)
+  ├── GitHub Trending (6 lenguajes)
+  ├── NewsAPI (requiere key)
+  ├── GDELT 2.0 (endpoint inestable)
+  └── Mock (desarrollo)
         │
         ▼ ── colectores (patrón adaptador)
   collectAll()
@@ -200,8 +232,8 @@ Fuentes externas
   └─ calculateImportanceScore → ranking ponderado
         │
         ▼ ── persistencia + tiempo real
-  ┌─ Prisma (PostgreSQL + PostGIS)
-  ├─ Redis (caché, TTL 2min)
+  ┌─ Prisma (SQLite / PostgreSQL)
+  ├─ Caché en memoria (o Redis con Docker)
   └─ Socket.IO (eventos breaking-news, feed-update)
         │
         ▼ ── API REST + frontend React
@@ -210,30 +242,23 @@ Fuentes externas
 
 ---
 
-## 🏗️ Modelo de Datos (Prisma)
-
-```
-User (1)──(1) UserPreference
-  │
-  └──(N) NewsBookmark (N)──(1) News
-                                │
-                                ├──(N) NewsEntity
-                                ├──(N) NewsSource
-                                └──(N) NewsTimeline
-
-Trend (independiente, agregación por tópico)
-CacheEntry (independiente, clave-valor con TTL)
-```
-
----
-
 ## 🐳 Servicios Docker
 
-| Servicio | Puerto | Depende de |
-|----------|--------|------------|
-| `frontend` (Next.js) | `3000` | backend |
-| `backend` (Express) | `4000` | postgres, redis |
-| `postgres` (PostGIS) | `5432` | — |
-| `redis` (Alpine) | `6379` | — |
+| Servicio | Puerto | Depende de | Sin Docker |
+|----------|--------|------------|------------|
+| `frontend` (Next.js) | `3000` | backend | ✅ npm run dev |
+| `backend` (Express) | `4000` | postgres, redis | ✅ npx tsx src/index.ts |
+| `postgres` (PostGIS) | `5432` | — | ❌ usa SQLite |
+| `redis` (Alpine) | `6379` | — | ❌ usa caché en memoria |
 
-Volúmenes persistentes: `postgres_data`, `redis_data`
+## 🔧 Fixes Aplicados (Post-lanzamiento inicial)
+
+| Problema | Solución |
+|----------|----------|
+| Refresco constante (FilterBar loop) | `useRef` para callback + `isFirstRender` guard |
+| D3 charts parpadeando | `deepEqual` para evitar redibujar con mismos datos |
+| Leaflet `window is not defined` (SSR) | `next/dynamic` con `ssr: false` + imports dinámicos |
+| WebSocket rebind en cada render | `useRef` para `fetchRefCallback` |
+| EADDRINUSE al reiniciar | `start.sh` con fuser + pkill agresivo |
+| ReliefWeb API v1 deprecada | Reemplazado por WHO Collector |
+| GitHub scraping HTML cambiado | Regex actualizado |

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 interface FilterBarProps {
   onFilterChange: (filters: Record<string, string | undefined>) => void
@@ -12,22 +12,35 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
   const [source, setSource] = useState('')
   const [status, setStatus] = useState('')
   const [minScore, setMinScore] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [sortBy, setSortBy] = useState('relevance')
+  const [sortDir, setSortDir] = useState('desc')
   const [showFilters, setShowFilters] = useState(false)
-
-  const applyFilters = useCallback(() => {
-    onFilterChange({
-      search: search || undefined,
-      country: country || undefined,
-      source: source || undefined,
-      status: status || undefined,
-      minScore: minScore || undefined,
-    })
-  }, [search, country, source, status, minScore, onFilterChange])
+  const isFirstRender = useRef(true)
+  const callbackRef = useRef(onFilterChange)
+  callbackRef.current = onFilterChange
 
   useEffect(() => {
-    const timer = setTimeout(applyFilters, 500)
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    const timer = setTimeout(() => {
+      callbackRef.current({
+        search: search || undefined,
+        country: country || undefined,
+        source: source || undefined,
+        status: status || undefined,
+        minScore: minScore || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        sortBy: sortBy || undefined,
+        sortDir: sortDir || undefined,
+      })
+    }, 400)
     return () => clearTimeout(timer)
-  }, [applyFilters])
+  }, [search, country, source, status, minScore, fromDate, toDate, sortBy, sortDir])
 
   const clearFilters = () => {
     setSearch('')
@@ -35,10 +48,15 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
     setSource('')
     setStatus('')
     setMinScore('')
-    onFilterChange({})
+    setFromDate('')
+    setToDate('')
+    setSortBy('relevance')
+    setSortDir('desc')
+    callbackRef.current({})
   }
 
-  const hasFilters = search || country || source || status || minScore
+  const filterCount = [country, source, status, minScore, fromDate, toDate].filter(Boolean).length
+  const hasFilters = search || filterCount > 0
 
   return (
     <div className="news-card p-3">
@@ -56,26 +74,39 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
           </svg>
         </div>
 
+        <div className="flex">
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-2 text-sm rounded-l-lg border border-r-0 border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300"
+          >
+            <option value="relevance">Relevancia</option>
+            <option value="date">Fecha</option>
+          </select>
+          <button
+            onClick={() => setSortDir(sortDir === 'desc' ? 'asc' : 'desc')}
+            className="px-2 py-2 text-sm rounded-r-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-700"
+            title={sortDir === 'desc' ? 'Descendente' : 'Ascendente'}
+          >
+            {sortDir === 'desc' ? '↓' : '↑'}
+          </button>
+        </div>
+
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`px-3 py-2 text-sm rounded-lg border transition-colors ${
+          className={`px-3 py-2 text-sm rounded-lg border transition-colors shrink-0 ${
             showFilters || hasFilters
               ? 'bg-osint-50 text-osint-700 border-osint-300 dark:bg-osint-900/30 dark:text-osint-300 dark:border-osint-700'
               : 'border-gray-300 dark:border-slate-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-slate-800'
           }`}
         >
-          Filtros {hasFilters ? `(${[
-            country && 'país',
-            source && 'fuente',
-            status && 'estado',
-            minScore && 'score',
-          ].filter(Boolean).length})` : ''}
+          Filtros {filterCount > 0 ? `(${filterCount})` : ''}
         </button>
 
         {hasFilters && (
           <button
             onClick={clearFilters}
-            className="px-3 py-2 text-sm rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+            className="px-3 py-2 text-sm rounded-lg text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors shrink-0"
           >
             Limpiar
           </button>
@@ -83,59 +114,91 @@ export function FilterBar({ onFilterChange }: FilterBarProps) {
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
-          <select
-            value={country}
-            onChange={(e) => setCountry(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-          >
-            <option value="">Todos los países</option>
-            <option value="US">EE.UU.</option>
-            <option value="CN">China</option>
-            <option value="RU">Rusia</option>
-            <option value="GB">Reino Unido</option>
-            <option value="FR">Francia</option>
-            <option value="DE">Alemania</option>
-            <option value="IN">India</option>
-            <option value="JP">Japón</option>
-            <option value="BR">Brasil</option>
-            <option value="CL">Chile</option>
-            <option value="EU">Unión Europea</option>
-          </select>
+        <div className="flex flex-wrap items-end gap-3 mt-3 pt-3 border-t border-gray-200 dark:border-slate-700">
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">País</label>
+            <select
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Todos</option>
+              <option value="US">EE.UU.</option>
+              <option value="CN">China</option>
+              <option value="RU">Rusia</option>
+              <option value="GB">Reino Unido</option>
+              <option value="FR">Francia</option>
+              <option value="DE">Alemania</option>
+              <option value="IN">India</option>
+              <option value="JP">Japón</option>
+              <option value="BR">Brasil</option>
+              <option value="CL">Chile</option>
+              <option value="EU">Unión Europea</option>
+            </select>
+          </div>
 
-          <select
-            value={source}
-            onChange={(e) => setSource(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-          >
-            <option value="">Todas las fuentes</option>
-            <option value="NEWSAPI">NewsAPI</option>
-            <option value="GDELT">GDELT</option>
-            <option value="RSS">RSS</option>
-            <option value="WIKIPEDIA">Wikipedia</option>
-          </select>
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">Fuente</label>
+            <select
+              value={source}
+              onChange={(e) => setSource(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Todas</option>
+              <option value="RSS">RSS</option>
+              <option value="WIKIPEDIA">Wikipedia</option>
+              <option value="NEWSAPI">NewsAPI</option>
+              <option value="GDELT">GDELT</option>
+            </select>
+          </div>
 
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-          >
-            <option value="">Todos los estados</option>
-            <option value="BREAKING">Última hora</option>
-            <option value="PENDING">Pendiente</option>
-            <option value="VERIFIED">Verificado</option>
-          </select>
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">Estado</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Todos</option>
+              <option value="BREAKING">Última hora</option>
+              <option value="PENDING">Pendiente</option>
+              <option value="VERIFIED">Verificado</option>
+            </select>
+          </div>
 
-          <select
-            value={minScore}
-            onChange={(e) => setMinScore(e.target.value)}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
-          >
-            <option value="">Cualquier importancia</option>
-            <option value="90">Crítico (90+)</option>
-            <option value="75">Alto (75+)</option>
-            <option value="50">Medio (50+)</option>
-          </select>
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">Score mínimo</label>
+            <select
+              value={minScore}
+              onChange={(e) => setMinScore(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            >
+              <option value="">Cualquiera</option>
+              <option value="90">Crítico (90+)</option>
+              <option value="75">Alto (75+)</option>
+              <option value="50">Medio (50+)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">Desde</label>
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] text-gray-400 mb-0.5">Hasta</label>
+            <input
+              type="date"
+              value={toDate}
+              onChange={(e) => setToDate(e.target.value)}
+              className="px-2 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-white"
+            />
+          </div>
         </div>
       )}
     </div>

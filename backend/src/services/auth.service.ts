@@ -15,7 +15,6 @@ export class AuthService {
       data: { email, password: hashedPassword, name },
     })
 
-    // Crear preferencias por defecto
     await prisma.userPreference.create({
       data: { userId: user.id },
     })
@@ -41,7 +40,15 @@ export class AuthService {
       include: { preferences: true },
     })
     if (!user) throw new AppError(404, 'Usuario no encontrado')
-    return user
+
+    const userData = user as any
+    if (userData.preferences) {
+      userData.preferences.countries = JSON.parse(userData.preferences.countries || '[]')
+      userData.preferences.topics = JSON.parse(userData.preferences.topics || '[]')
+      userData.preferences.sources = JSON.parse(userData.preferences.sources || '[]')
+    }
+
+    return userData
   }
 
   async updatePreferences(userId: string, data: {
@@ -52,10 +59,18 @@ export class AuthService {
     language?: string
     osintMode?: boolean
   }) {
+    const updateData: any = {}
+    if (data.countries !== undefined) updateData.countries = JSON.stringify(data.countries)
+    if (data.topics !== undefined) updateData.topics = JSON.stringify(data.topics)
+    if (data.sources !== undefined) updateData.sources = JSON.stringify(data.sources)
+    if (data.minScore !== undefined) updateData.minScore = data.minScore
+    if (data.language !== undefined) updateData.language = data.language
+    if (data.osintMode !== undefined) updateData.osintMode = data.osintMode
+
     return prisma.userPreference.upsert({
       where: { userId },
-      update: data,
-      create: { userId, ...data },
+      update: updateData,
+      create: { userId, ...updateData },
     })
   }
 

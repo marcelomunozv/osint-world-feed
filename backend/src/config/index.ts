@@ -8,20 +8,8 @@ export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   useMocks: process.env.USE_MOCKS === 'true',
 
-  postgres: {
-    host: process.env.POSTGRES_HOST || 'localhost',
-    port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
-    db: process.env.POSTGRES_DB || 'osint_feed',
-    user: process.env.POSTGRES_USER || 'osint_user',
-    password: process.env.POSTGRES_PASSWORD || 'osint_pass_secure',
-    get url() {
-      return `postgresql://${this.user}:${this.password}@${this.host}:${this.port}/${this.db}`
-    },
-  },
-
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: parseInt(process.env.REDIS_PORT || '6379', 10),
+  database: {
+    url: process.env.DATABASE_URL || 'file:./dev.db',
   },
 
   jwt: {
