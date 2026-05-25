@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum NewsStatus {
+  PENDING
+  VERIFIED
+  BREAKING
+  ARCHIVED
+}
+
+enum SourceType {
+  NEWSAPI
+  GDELT
+  RSS
+  WIKIPEDIA
+  TWITTER
+  MANUAL
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("user")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  preferences UserPreference?
+  bookmarks   NewsBookmark[]
+}
+
+model UserPreference {
+  id          String @id @default(uuid())
+  userId      String @unique
+  user        User   @relation(fields: [userId], references: [id])
+  countries   String[]
+  topics      String[]
+  sources     String[]
+  minScore    Float  @default(0)
+  language    String @default("es")
+  osintMode   Boolean @default(false)
+}
+
+model News {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  content     String?
+  url         String   @unique
+  imageUrl    String?
+  sourceName  String
+  sourceId    String
+  sourceType  SourceType
+  publishedAt DateTime
+  fetchedAt   DateTime @default(now())
+  language    String   @default("es")
+  country     String?
+  latitude    Float?
+  longitude   Float?
+  locationName String?
+  sentimentLabel  String?  @default("neutral")
+  sentimentScore  Float?   @default(0)
+  summary     String?
+  importanceScore Float   @default(0)
+  velocityScore   Float   @default(0)
+  credibilityScore Float  @default(0.5)
+  status      NewsStatus @default(PENDING)
+
+  entities NewsEntity[]
+  sources  NewsSource[]
+  bookmarks NewsBookmark[]
+  timeline NewsTimeline[]
+
+  @@index([publishedAt])
+  @@index([importanceScore])
+  @@index([status])
+  @@index([country])
+  @@index([latitude, longitude])
+}
+
+model NewsEntity {
+  id         String @id @default(uuid())
+  newsId     String
+  news       News   @relation(fields: [newsId], references: [id])
+  name       String
+  type       String // PERSON, ORGANIZATION, LOCATION, EVENT
+  relevance  Float  @default(0)
+  mentions   Int    @default(1)
+
+  @@index([newsId])
+  @@index([name])
+}
+
+model NewsSource {
+  id         String     @id @default(uuid())
+  newsId     String
+  news       News       @relation(fields: [newsId], references: [id])
+  sourceUrl  String
+  sourceName String
+  sourceType SourceType
+  credibility Float     @default(0.5)
+  fetchedAt  DateTime   @default(now())
+
+  @@index([newsId])
+}
+
+model NewsTimeline {
+  id        String   @id @default(uuid())
+  newsId    String
+  news      News     @relation(fields: [newsId], references: [id])
+  event     String   // FIRST_REPORTED, VERIFIED, PEAK, UPDATE
+  sourceUrl String?
+  timestamp DateTime @default(now())
+
+  @@index([newsId])
+  @@index([timestamp])
+}
+
+model NewsBookmark {
+  id      String @id @default(uuid())
+  userId  String
+  user    User   @relation(fields: [userId], references: [id])
+  newsId  String
+  news    News   @relation(fields: [newsId], references: [id])
+
+  @@unique([userId, newsId])
+}
+
+model Trend {
+  id        String   @id @default(uuid())
+  topic     String   @unique
+  count     Int      @default(0)
+  velocity  Float    @default(0)
+  sentiment Float    @default(0)
+  lastSeen  DateTime @default(now())
+  category  String?
+}
+
+model CacheEntry {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  ttl       Int
+  createdAt DateTime @default(now())
+}
